@@ -85,6 +85,10 @@ In this case just add the settings to root page config.
 styles.content.textmedia.linkWrap.lightboxEnabled = 1
 ```
 
+### Image lazyload support
+
+The extension supports [TYPO3 lazyload handling](https://docs.typo3.org/c/typo3/cms-core/master/en-us/Changelog/10.3/Feature-90426-Browser-nativeLazyLoadingForImages.html) (fluid_styled_content) for native browser lazyload.
+
 ### Allowed extensions
 
 By default the extensions from `$TYPO3_CONF_VARS['GFX']['imagefile_ext']` are allowed. However you can override this for CKEditor by adding the following to your YAML configuration:
