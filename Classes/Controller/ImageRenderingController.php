@@ -90,18 +90,30 @@ class ImageRenderingController extends \TYPO3\CMS\Frontend\Plugin\AbstractPlugin
             $fileUid = (int)$imageAttributes['data-htmlarea-file-uid'];
             if ($fileUid) {
                 try {
-                    $file = Resource\ResourceFactory::getInstance()->getFileObject($fileUid);
-                    if ($imageAttributes['src'] !== $file->getPublicUrl()) {
+                    $systemImage = Resource\ResourceFactory::getInstance()->getFileObject($fileUid);
+
+                    if ($imageAttributes['src'] !== $systemImage->getPublicUrl()) {
                         // Source file is a processed image
                         $imageConfiguration = [
                             'width' => (int)$imageAttributes['width'],
                             'height' => (int)$imageAttributes['height']
                         ];
-                        $processedFile = $this->getMagicImageService()->createMagicImage($file, $imageConfiguration);
+
+                        // Title/Alttext: when override mode is enabled use the fields value even if it's empty
+                        // When value is empty, attribute will be removed
+                        $title = ($imageAttributes['title'] || (array_key_exists('title', $imageAttributes) && $imageAttributes['data-title-override'] === 'true')) ? $imageAttributes['title'] : $systemImage->getProperty('title');
+                        $alt = ($imageAttributes['alt'] || (array_key_exists('alt', $imageAttributes) && $imageAttributes['data-alt-override'] === 'true')) ? $imageAttributes['alt'] : $systemImage->getProperty('alternative');
+
+                        // Remove internal attributes
+                        unset($imageAttributes['data-title-override']);
+                        unset($imageAttributes['data-alt-override']);
+
+                        $processedFile = $this->getMagicImageService()->createMagicImage($systemImage, $imageConfiguration);
+
                         $additionalAttributes = [
                             'src' => $processedFile->getPublicUrl(),
-                            'title' => ($imageAttributes['title']) ? $imageAttributes['title'] : $file->getProperty('title'),
-                            'alt' => ($imageAttributes['alt']) ? $imageAttributes['alt'] : $file->getProperty('alternative'),
+                            'title' => $title,
+                            'alt' => $alt,
                             'width' => ($processedFile->getProperty('width')) ? $processedFile->getProperty('width') : $imageConfiguration['width'],
                             'height' => ($processedFile->getProperty('height')) ? $processedFile->getProperty('height') : $imageConfiguration['height'],
                         ];
@@ -127,20 +139,20 @@ class ImageRenderingController extends \TYPO3\CMS\Frontend\Plugin\AbstractPlugin
             $imageAttributes = array_diff_key($imageAttributes, array_flip($unsetParams));
         }
 
-        // Image template; empty attributes are removed by 3nd param 'false'
+        // Image template; empty attributes are removed by 3rd param 'false'
         $img = '<img ' . GeneralUtility::implodeAttributes($imageAttributes, true, false) . ' />';
 
         // Popup rendering (support new `zoom` and legacy `clickenlarge` attributes)
-        if (($imageAttributes['data-htmlarea-zoom'] || $imageAttributes['data-htmlarea-clickenlarge']) && isset($file) && $file) {
+        if (($imageAttributes['data-htmlarea-zoom'] || $imageAttributes['data-htmlarea-clickenlarge']) && isset($systemImage) && $systemImage) {
             $config = $GLOBALS['TSFE']->tmpl->setup['lib.']['contentElement.']['settings.']['media.']['popup.'];
             $config['enable'] = 1;
-            $file->_updateMetaDataProperties(array('title'=>($imageAttributes['title']) ? $imageAttributes['title'] : $file->getProperty('title')));
-            $this->cObj->setCurrentFile($file);
+            $systemImage->_updateMetaDataProperties(array('title'=>($imageAttributes['title']) ? $imageAttributes['title'] : $systemImage->getProperty('title')));
+            $this->cObj->setCurrentFile($systemImage);
 
             // Use $this->cObject to have access to all parameters from the image tag
             return $this->cObj->imageLinkWrap(
                 $img,
-                $file,
+                $systemImage,
                 $config
             );
         }

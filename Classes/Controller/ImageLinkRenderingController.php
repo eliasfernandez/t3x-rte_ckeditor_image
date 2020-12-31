@@ -82,26 +82,36 @@ class ImageLinkRenderingController extends \TYPO3\CMS\Frontend\Plugin\AbstractPl
             // Get image attributes
             preg_match_all($attrSearchPattern, $passedImage, $passedAttributes);
             $passedAttributes = array_combine($passedAttributes[1], $passedAttributes[2]);
-            // Remove empty values
-            $passedAttributes = array_filter($passedAttributes);
 
             if (!empty($passedAttributes['data-htmlarea-file-uid'])) {
                 try {
                     $systemImage = Resource\ResourceFactory::getInstance()->getFileObject($passedAttributes['data-htmlarea-file-uid']);
+
                     $imageConfiguration = [
                         'width' => ($passedAttributes['width']) ? $passedAttributes['width'] : $systemImage->getProperty('width'),
                         'height' => ($passedAttributes['height']) ? $passedAttributes['height'] : $systemImage->getProperty('height')
                     ];
+
+                    // Title/Alttext: when override mode is enabled use the fields value even if it's empty
+                    // When value is empty, attribute will be removed
+                    $title = ($passedAttributes['title'] || (array_key_exists('title', $passedAttributes) && $passedAttributes['data-title-override'] === 'true')) ? $passedAttributes['title'] : $systemImage->getProperty('title');
+                    $alt = ($passedAttributes['alt'] || (array_key_exists('alt', $passedAttributes) && $passedAttributes['data-alt-override'] === 'true')) ? $passedAttributes['alt'] : $systemImage->getProperty('alternative');
+
+                    // Remove internal attributes
+                    unset($passedAttributes['data-title-override']);
+                    unset($passedAttributes['data-alt-override']);
+
                     $processedFile = $this->getMagicImageService()->createMagicImage($systemImage, $imageConfiguration);
                     $imageAttributes = [
                         'src' => $processedFile->getPublicUrl(),
-                        'title' => ($passedAttributes['title']) ? $passedAttributes['title'] : $systemImage->getProperty('title'),
-                        'alt' => ($passedAttributes['alt']) ? $passedAttributes['alt'] : $systemImage->getProperty('alternative'),
+                        'title' => $title,
+                        'alt' => $alt,
                         'width' => ($passedAttributes['width']) ? $passedAttributes['width'] : $systemImage->getProperty('width'),
                         'height' => ($passedAttributes['height']) ? $passedAttributes['height'] : $systemImage->getProperty('height')
                     ];
                     // Add original attributes, if not already parsed
-                    $imageAttributes = $imageAttributes + $passedAttributes;
+                    $imageAttributes = array_merge($imageAttributes, $passedAttributes);
+
                     // Cleanup attributes; disable zoom images within links
                     $unsetParams = [
                         'data-htmlarea-file-uid',
@@ -110,7 +120,7 @@ class ImageLinkRenderingController extends \TYPO3\CMS\Frontend\Plugin\AbstractPl
                         'data-htmlarea-clickenlarge' // Legacy zoom property
                     ];
                     $imageAttributes = array_diff_key($imageAttributes, array_flip($unsetParams));
-                    // Image template; empty attributes are removed by 3nd param 'false'
+                    // Image template; empty attributes are removed by 3rd param 'false'
                     $parsedImages[] = '<img ' . GeneralUtility::implodeAttributes($imageAttributes, true, false) . ' />';
                 } catch (Resource\Exception\FileDoesNotExistException $fileDoesNotExistException) {
                     $parsedImages[] = $passedImage;
